@@ -30,15 +30,15 @@ const SHOW_REASONING = false; // Set to true to show reasoning with <think> tags
 // 🔥 THINKING MODE TOGGLE - Enables thinking for specific models that support it
 const ENABLE_THINKING_MODE = false; // Set to true to enable chat_template_kwargs thinking parameter
 
-// Model mapping - Updated with verified, production NVIDIA NIM string identifiers
+// Model mapping - Realigned to high-availability free tier endpoints
 const MODEL_MAPPING = {
   'gpt-3.5-turbo': 'meta/llama-3.1-8b-instruct',
-  'gpt-4': 'meta/llama-3.1-70b-instruct',
+  'gpt-4': 'meta/llama-3.3-70b-instruct',
   'gpt-4-turbo': 'meta/llama-3.1-405b-instruct',
-  'gpt-4o': 'deepseek-ai/deepseek-v3',
-  'claude-3-opus': 'deepseek-ai/deepseek-r1',
+  'gpt-4o': 'meta/llama-3.3-70b-instruct',
+  'claude-3-opus': 'meta/llama-3.3-70b-instruct',
   'claude-3-sonnet': 'meta/llama-3.3-70b-instruct',
-  'gemini-pro': 'google/gemma-2-27b-it' 
+  'gemini-pro': 'meta/llama-3.1-8b-instruct' 
 };
 
 // Health check endpoint
