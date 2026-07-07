@@ -226,8 +226,19 @@ app.post('/v1/chat/completions', async (req, res) => {
       res.json(openaiResponse);
     }
     
-  } catch (error) {
-    console.error('Proxy error:', error.message);
+    } catch (error) {
+    console.error('--- 🚨 CRITICAL PROXY BREAKDOWN 🚨 ---');
+    console.error('Proxy Error Message:', error.message);
+    
+    if (error.response) {
+      console.error('Upstream Server Status:', error.response.status);
+      console.error('NVIDIA Raw Error Data:', JSON.stringify(error.response.data, null, 2));
+    } else if (error.request) {
+      console.error('No response received from NVIDIA. Network issue?');
+    } else {
+      console.error('Error establishing request:', error.message);
+    }
+    console.error('--------------------------------------');
     
     res.status(error.response?.status || 500).json({
       error: {
@@ -237,22 +248,4 @@ app.post('/v1/chat/completions', async (req, res) => {
       }
     });
   }
-});
 
-// Catch-all for unsupported endpoints
-app.all('*', (req, res) => {
-  res.status(404).json({
-    error: {
-      message: `Endpoint ${req.path} not found`,
-      type: 'invalid_request_error',
-      code: 404
-    }
-  });
-});
-
-app.listen(PORT, () => {
-  console.log(`OpenAI to NVIDIA NIM Proxy running on port ${PORT}`);
-  console.log(`Health check: http://localhost:${PORT}/health`);
-  console.log(`Reasoning display: ${SHOW_REASONING ? 'ENABLED' : 'DISABLED'}`);
-  console.log(`Thinking mode: ${ENABLE_THINKING_MODE ? 'ENABLED' : 'DISABLED'}`);
-});
