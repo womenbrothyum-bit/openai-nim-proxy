@@ -71,26 +71,29 @@ app.post('/v1/chat/completions', async (req, res) => {
   try {
     const { model, messages, temperature, max_tokens, stream } = req.body;
     
-    // Smart model selection with fallback
+    // Smart model selection with isolated fallback protection
     let nimModel = MODEL_MAPPING[model];
     if (!nimModel) {
       try {
-        await axios.post(`${NIM_API_BASE}/chat/completions`, {
+        const testRes = await axios.post(`${NIM_API_BASE}/chat/completions`, {
           model: model,
           messages: [{ role: 'user', content: 'test' }],
           max_tokens: 1
         }, {
           headers: { 'Authorization': `Bearer ${NIM_API_KEY}`, 'Content-Type': 'application/json' },
           validateStatus: (status) => status < 500
-        }).then(res => {
-          if (res.status >= 200 && res.status < 300) {
-            nimModel = model;
-          }
         });
-      } catch (e) {}
+        
+        if (testRes.status >= 200 && testRes.status < 300) {
+          nimModel = model;
+        }
+      } catch (e) {
+        console.log("Model pre-test failed or unauthorized, defaulting to fallback tree.");
+      }
       
+      // If the verification test failed or model wasn't mapped, apply safe string defaults
       if (!nimModel) {
-        const modelLower = model.toLowerCase();
+        const modelLower = (model || '').toLowerCase();
         if (modelLower.includes('gpt-4') || modelLower.includes('claude-opus') || modelLower.includes('405b')) {
           nimModel = 'meta/llama-3.1-405b-instruct';
         } else if (modelLower.includes('claude') || modelLower.includes('gemini') || modelLower.includes('70b')) {
