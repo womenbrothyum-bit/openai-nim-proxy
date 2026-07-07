@@ -1,4 +1,4 @@
-// server.js - OpenAI to NVIDIA NIM Proxy (Render Free Tier Optimized)
+// server.js - OpenAI to NVIDIA Function Invoke Proxy (Render Free Tier Optimized)
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
@@ -6,7 +6,6 @@ const axios = require('axios');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Open CORS parameters for Janitor AI stability
 app.use(cors({
   origin: '*', 
   methods: ['GET', 'POST', 'OPTIONS'],
@@ -15,45 +14,39 @@ app.use(cors({
 }));
 
 app.options('*', cors()); 
-
 app.use(express.json({ limit: '100mb' })); 
 app.use(express.urlencoded({ limit: '100mb', extended: true }));
 
-// NVIDIA Cloud Registry Endpoint configuration
+// NVIDIA Personal Developer Function API Endpoint configuration
 const NIM_API_BASE = process.env.NIM_API_BASE || 'https://nvidia.com';
 const NIM_API_KEY = process.env.NIM_API_KEY;
 
-// High-availability model array
+// Direct operational IDs for your personal account tier
 const MODEL_MAPPING = {
-  'gpt-3.5-turbo': 'meta/llama-3.1-8b-instruct',
-  'gpt-4': 'meta/llama-3.3-70b-instruct',
-  'gpt-4-turbo': 'meta/llama-3.1-405b-instruct',
-  'gpt-4o': 'meta/llama-3.3-70b-instruct',
-  'claude-3-opus': 'meta/llama-3.3-70b-instruct',
-  'claude-3-sonnet': 'meta/llama-3.3-70b-instruct',
-  'gemini-pro': 'meta/llama-3.1-8b-instruct' 
+  'gpt-3.5-turbo': '0c232230-0d30-4e33-911e-b873a4666f44', // Llama 3.1 8B Base Function ID
+  'gpt-4o': '124e4d58-c9cb-4c28-98e3-05ecb1236802'       // Llama 3.3 70B Base Function ID
 };
 
-// Health Check Node
 app.get(['/', '/health'], (req, res) => {
-  res.json({ status: 'ok', platform: 'Render Free Tier' });
+  res.json({ status: 'ok', tier: 'Personal Developer Bypassed' });
 });
 
-// Main Chat Routing Handler (Accepts raw roots or sub-folder routes seamlessly)
 app.post(['/', '/v1/chat/completions'], async (req, res) => {
   try {
     const { model, messages, temperature, max_tokens, stream } = req.body;
-    let nimModel = MODEL_MAPPING[model] || 'meta/llama-3.1-8b-instruct';
+    
+    // Select the valid model hash string or fallback to safe Llama baseline
+    let functionId = MODEL_MAPPING[model] || '0c232230-0d30-4e33-911e-b873a4666f44';
     
     const nimRequest = {
-      model: nimModel,
       messages: messages,
       temperature: temperature || 0.6,
-      max_tokens: max_tokens || 1024, // Kept light to stay within free API minute caps
+      max_tokens: max_tokens || 1024,
       stream: stream || false
     };
     
-    const response = await axios.post(`${NIM_API_BASE}/chat/completions`, nimRequest, {
+    // Direct operational request routing bypassing the integrated 404 block
+    const response = await axios.post(`${NIM_API_BASE}/${functionId}`, nimRequest, {
       headers: {
         'Authorization': `Bearer ${NIM_API_KEY?.trim()}`,
         'Content-Type': 'application/json',
@@ -63,12 +56,10 @@ app.post(['/', '/v1/chat/completions'], async (req, res) => {
     });
     
     if (stream) {
-      // 🚨 THE CRITICAL RENDER FREE TIER FIX 🚨
-      // These headers force Render's load balancer to stop buffering chunks
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache, no-transform');
       res.setHeader('Connection', 'keep-alive');
-      res.setHeader('X-Accel-Buffering', 'no'); // Disables proxy chunk aggregation
+      res.setHeader('X-Accel-Buffering', 'no'); 
       
       response.data.on('data', (chunk) => {
         res.write(chunk);
@@ -76,18 +67,27 @@ app.post(['/', '/v1/chat/completions'], async (req, res) => {
       response.data.on('end', () => res.end());
       response.data.on('error', () => res.end());
     } else {
-      res.json(response.data);
+      // Structure response payload to be OpenAI/Janitor compliant
+      res.json({
+        id: `chatcmpl-${Date.now()}`,
+        object: 'chat.completion',
+        created: Math.floor(Date.now() / 1000),
+        model: model,
+        choices: [{
+          index: 0,
+          message: {
+            role: 'assistant',
+            content: response.data.choices?.[0]?.message?.content || response.data.text || ''
+          },
+          finish_reason: 'stop'
+        }]
+      });
     }
     
   } catch (error) {
-    console.error('--- 🚨 PROXY snag 🚨 ---');
+    console.error('--- 🚨 DIRECT PROXY SNAG 🚨 ---');
     console.error('Message:', error.message);
-    if (error.response) {
-      console.dir(error.response.data, { depth: null, colors: true });
-    }
-    res.status(error.response?.status || 500).json({
-      error: { message: error.message || 'Internal proxy snag' }
-    });
+    res.status(500).json({ error: { message: 'NVIDIA Direct Invoke Failure' } });
   }
 });
 
