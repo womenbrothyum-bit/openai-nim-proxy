@@ -1,4 +1,4 @@
-// server.js - OpenAI to NVIDIA Developer API Proxy
+// server.js - OpenAI to NVIDIA NIM Proxy (Render Free Tier Optimized)
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
@@ -6,11 +6,11 @@ const axios = require('axios');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware - Configured specifically to open CORS headers for Janitor AI
+// Open CORS parameters for Janitor AI stability
 app.use(cors({
   origin: '*', 
   methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Accel-Buffering'],
   credentials: true
 }));
 
@@ -19,17 +19,11 @@ app.options('*', cors());
 app.use(express.json({ limit: '100mb' })); 
 app.use(express.urlencoded({ limit: '100mb', extended: true }));
 
-// NVIDIA API configuration - Set to the official developer hub endpoint
+// NVIDIA Cloud Registry Endpoint configuration
 const NIM_API_BASE = process.env.NIM_API_BASE || 'https://nvidia.com';
 const NIM_API_KEY = process.env.NIM_API_KEY;
 
-// 🔥 REASONING DISPLAY TOGGLE - Shows/hides reasoning in output
-const SHOW_REASONING = false; 
-
-// 🔥 THINKING MODE TOGGLE - Enables thinking for specific models that support it
-const ENABLE_THINKING_MODE = false; 
-
-// Model mapping - Realigned with verified, high-availability free tier identifiers
+// High-availability model array
 const MODEL_MAPPING = {
   'gpt-3.5-turbo': 'meta/llama-3.1-8b-instruct',
   'gpt-4': 'meta/llama-3.3-70b-instruct',
@@ -40,29 +34,26 @@ const MODEL_MAPPING = {
   'gemini-pro': 'meta/llama-3.1-8b-instruct' 
 };
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'OpenAI to NVIDIA Proxy' });
+// Health Check Node
+app.get(['/', '/health'], (req, res) => {
+  res.json({ status: 'ok', platform: 'Render Free Tier' });
 });
 
-// Chat completions endpoint
-app.post('/v1/chat/completions', async (req, res) => {
+// Main Chat Routing Handler (Accepts raw roots or sub-folder routes seamlessly)
+app.post(['/', '/v1/chat/completions'], async (req, res) => {
   try {
     const { model, messages, temperature, max_tokens, stream } = req.body;
-    
     let nimModel = MODEL_MAPPING[model] || 'meta/llama-3.1-8b-instruct';
     
-    // Transform OpenAI request to standard layout parameters
     const nimRequest = {
       model: nimModel,
       messages: messages,
       temperature: temperature || 0.6,
-      max_tokens: max_tokens || 2048,
+      max_tokens: max_tokens || 1024, // Kept light to stay within free API minute caps
       stream: stream || false
     };
     
-    // Make request directly to NVIDIA Developer catalog nodes
-    const response = await axios.post(`${NIM_API_BASE}`, nimRequest, {
+    const response = await axios.post(`${NIM_API_BASE}/chat/completions`, nimRequest, {
       headers: {
         'Authorization': `Bearer ${NIM_API_KEY?.trim()}`,
         'Content-Type': 'application/json',
@@ -72,29 +63,34 @@ app.post('/v1/chat/completions', async (req, res) => {
     });
     
     if (stream) {
+      // 🚨 THE CRITICAL RENDER FREE TIER FIX 🚨
+      // These headers force Render's load balancer to stop buffering chunks
       res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
       res.setHeader('Connection', 'keep-alive');
-      response.data.pipe(res); // Straight-pipe stream pass-through for stability
+      res.setHeader('X-Accel-Buffering', 'no'); // Disables proxy chunk aggregation
+      
+      response.data.on('data', (chunk) => {
+        res.write(chunk);
+      });
+      response.data.on('end', () => res.end());
+      response.data.on('error', () => res.end());
     } else {
       res.json(response.data);
     }
     
   } catch (error) {
-    console.error('--- 🚨 CRITICAL PROXY BREAKDOWN 🚨 ---');
-    console.error('Proxy Error Message:', error.message);
+    console.error('--- 🚨 PROXY snag 🚨 ---');
+    console.error('Message:', error.message);
     if (error.response) {
-      console.error('Upstream Server Status:', error.response.status);
-      console.dir(error.response.data, { depth: 1, colors: true });
+      console.dir(error.response.data, { depth: null, colors: true });
     }
-    console.error('--------------------------------------');
-    
     res.status(error.response?.status || 500).json({
-      error: { message: error.message || 'Internal server error', code: error.response?.status || 500 }
+      error: { message: error.message || 'Internal proxy snag' }
     });
   }
 });
 
 app.listen(PORT, () => {
-  console.log(`OpenAI to NVIDIA Proxy running on port ${PORT}`);
+  console.log(`Proxy running on port ${PORT}`);
 });
