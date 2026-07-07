@@ -30,15 +30,15 @@ const SHOW_REASONING = false; // Set to true to show reasoning with <think> tags
 // 🔥 THINKING MODE TOGGLE - Enables thinking for specific models that support it
 const ENABLE_THINKING_MODE = false; // Set to true to enable chat_template_kwargs thinking parameter
 
-// Model mapping (adjust based on available NIM models)
+// Model mapping - Updated with verified, production NVIDIA NIM string identifiers
 const MODEL_MAPPING = {
-  'gpt-3.5-turbo': 'nvidia/llama-3.1-nemotron-ultra-253b-v1',
-  'gpt-4': 'qwen/qwen3-coder-480b-a35b-instruct',
-  'gpt-4-turbo': 'moonshotai/kimi-k2-instruct-0905',
-  'gpt-4o': 'meta/llama-3.1-70b-instruct',
-  'claude-3-opus': 'openai/gpt-oss-120b',
-  'claude-3-sonnet': 'openai/gpt-oss-20b',
-  'gemini-pro': 'qwen/qwen3-next-80b-a3b-thinking' 
+  'gpt-3.5-turbo': 'meta/llama-3.1-8b-instruct',
+  'gpt-4': 'meta/llama-3.1-70b-instruct',
+  'gpt-4-turbo': 'meta/llama-3.1-405b-instruct',
+  'gpt-4o': 'deepseek-ai/deepseek-v3',
+  'claude-3-opus': 'deepseek-ai/deepseek-r1',
+  'claude-3-sonnet': 'meta/llama-3.3-70b-instruct',
+  'gemini-pro': 'google/gemma-2-27b-it' 
 };
 
 // Health check endpoint
@@ -94,10 +94,10 @@ app.post('/v1/chat/completions', async (req, res) => {
       // If the verification test failed or model wasn't mapped, apply safe string defaults
       if (!nimModel) {
         const modelLower = (model || '').toLowerCase();
-        if (modelLower.includes('gpt-4') || modelLower.includes('claude-opus') || modelLower.includes('405b')) {
-          nimModel = 'meta/llama-3.1-405b-instruct';
-        } else if (modelLower.includes('claude') || modelLower.includes('gemini') || modelLower.includes('70b')) {
-          nimModel = 'meta/llama-3.1-70b-instruct';
+        if (modelLower.includes('gpt-4') || modelLower.includes('claude-opus') || modelLower.includes('405b') || modelLower.includes('r1')) {
+          nimModel = 'deepseek-ai/deepseek-r1';
+        } else if (modelLower.includes('claude') || modelLower.includes('gemini') || modelLower.includes('70b') || modelLower.includes('v3')) {
+          nimModel = 'deepseek-ai/deepseek-v3';
         } else {
           nimModel = 'meta/llama-3.1-8b-instruct';
         }
@@ -109,7 +109,7 @@ app.post('/v1/chat/completions', async (req, res) => {
       model: nimModel,
       messages: messages,
       temperature: temperature || 0.6,
-      max_tokens: max_tokens || 9024,
+      max_tokens: max_tokens || 2048, // Balanced baseline parameter to mitigate 429 errors
       extra_body: ENABLE_THINKING_MODE ? { chat_template_kwargs: { thinking: true } } : undefined,
       stream: stream || false
     };
@@ -146,7 +146,7 @@ app.post('/v1/chat/completions', async (req, res) => {
             
             try {
               const data = JSON.parse(line.slice(6));
-              if (data.choices?.[0]?.delta) {
+              if (data.choices && data.choices[0] && data.choices[0].delta) {
                 const reasoning = data.choices[0].delta.reasoning_content;
                 const content = data.choices[0].delta.content;
                 
@@ -226,7 +226,7 @@ app.post('/v1/chat/completions', async (req, res) => {
       res.json(openaiResponse);
     }
     
-    } catch (error) {
+  } catch (error) {
     console.error('--- 🚨 CRITICAL PROXY BREAKDOWN 🚨 ---');
     console.error('Proxy Error Message:', error.message);
     
@@ -248,4 +248,22 @@ app.post('/v1/chat/completions', async (req, res) => {
       }
     });
   }
+});
 
+// Catch-all for unsupported endpoints
+app.all('*', (req, res) => {
+  res.status(404).json({
+    error: {
+      message: `Endpoint ${req.path} not found`,
+      type: 'invalid_request_error',
+      code: 404
+    }
+  });
+});
+
+app.listen(PORT, () => {
+  console.log(`OpenAI to NVIDIA NIM Proxy running on port ${PORT}`);
+  console.log(`Health check: http://localhost:${PORT}/health`);
+  console.log(`Reasoning display: ${SHOW_REASONING ? 'ENABLED' : 'DISABLED'}`);
+  console.log(`Thinking mode: ${ENABLE_THINKING_MODE ? 'ENABLED' : 'DISABLED'}`);
+});
