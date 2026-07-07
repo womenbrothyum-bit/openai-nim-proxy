@@ -21,7 +21,7 @@ app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ limit: '100mb', extended: true }));
 
 // NVIDIA NIM API configuration
-const NIM_API_BASE = process.env.NIM_API_BASE || 'https://integrate.api.nvidia.com/v1';
+const NIM_API_BASE = process.env.NIM_API_BASE || 'https://nvidia.com';
 const NIM_API_KEY = process.env.NIM_API_KEY;
 
 // 🔥 REASONING DISPLAY TOGGLE - Shows/hides reasoning in output
@@ -80,7 +80,7 @@ app.post('/v1/chat/completions', async (req, res) => {
           messages: [{ role: 'user', content: 'test' }],
           max_tokens: 1
         }, {
-          headers: { 'Authorization': `Bearer ${NIM_API_KEY}`, 'Content-Type': 'application/json' },
+          headers: { 'Authorization': `Bearer ${NIM_API_KEY?.trim()}`, 'Content-Type': 'application/json' },
           validateStatus: (status) => status < 500
         });
         
@@ -114,10 +114,10 @@ app.post('/v1/chat/completions', async (req, res) => {
       stream: stream || false
     };
     
-    // Make request to NVIDIA NIM API (Always uses the internal NIM_API_KEY env variable)
+    // Make request to NVIDIA NIM API (Cleaned key mapping array)
     const response = await axios.post(`${NIM_API_BASE}/chat/completions`, nimRequest, {
       headers: {
-        'Authorization': `Bearer ${NIM_API_KEY}`,
+        'Authorization': `Bearer ${NIM_API_KEY?.trim()}`,
         'Content-Type': 'application/json'
       },
       responseType: stream ? 'stream' : 'json'
@@ -146,7 +146,7 @@ app.post('/v1/chat/completions', async (req, res) => {
             
             try {
               const data = JSON.parse(line.slice(6));
-              if (data.choices && data.choices[0] && data.choices[0].delta) {
+              if (data.choices?.[0]?.delta) {
                 const reasoning = data.choices[0].delta.reasoning_content;
                 const content = data.choices[0].delta.content;
                 
@@ -232,7 +232,7 @@ app.post('/v1/chat/completions', async (req, res) => {
     
     if (error.response) {
       console.error('Upstream Server Status:', error.response.status);
-      console.error('NVIDIA Raw Error Data:', JSON.stringify(error.response.data, null, 2));
+      console.dir(error.response.data, { depth: null, colors: true });
     } else if (error.request) {
       console.error('No response received from NVIDIA. Network issue?');
     } else {
